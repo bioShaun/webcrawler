@@ -5,34 +5,26 @@ import urllib2
 import requests
 from bs4 import BeautifulSoup
 import os
+import time
 
-
-# LOGINURL = 'http://accounts.douban.com/login'
-# DOUBAN_LOAD = {
-#     "redir": DOUBAN_URL,
-#     "form_email": "guilixuan@gmail.com",
-#     "form_password": "glx198819",
-#     "login": u'登录'
-# }
 DOUBAN_URL = 'https://movie.douban.com/'
-HEADERS = {"User-Agent": 'Mozilla/5.0 (Windows NT 6.1)\
-           AppleWebKit/537.36 (KHTML, like Gecko) \
-           Chrome/43.0.2357.134 Safari/537.36'}
-COOKIE_FILE = 'cookie2.txt'
-COOKIE_DICT = {}
-with open(COOKIE_FILE) as raw_cookies:
-    for eachline in raw_cookies:
-        for line in eachline.split(';'):
-            key, value = line.split('=', 1)  # 1代表只分一次，得到两个数据
-            COOKIE_DICT[key.strip()] = value.strip()
+DOUBAN_DL_REF = 'https://movie.douban.com/photos/photo/'
 
 
-def saveImg(imageURL, fileName):
-    r = requests.get(imageURL, cookies=COOKIE_DICT, headers=HEADERS)
-    data = r.content
-    with open(fileName, 'wb') as file_inf:
-        file_inf.write(data)
-    return 1
+def get_cookie(cookie_file, name='Cookie'):
+    with open(cookie_file) as cookie_file_inf:
+        cookie_inf = cookie_file_inf.read().strip()
+        return {name: cookie_inf}
+
+
+headers_search = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+                  AppleWebKit/537.36 (KHTML, like Gecko) \
+                  Chrome/59.0.3071.115 Safari/537.36'}
+cookies_search = get_cookie('cookie_search.txt')
+headers_download = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+                     AppleWebKit/537.36 (KHTML, like Gecko) \
+                     Chrome/59.0.3071.115 Safari/537.36'}
+cookies_download = get_cookie('cookie_download.txt', 'cookie')
 
 
 class Spider(object):
@@ -59,21 +51,64 @@ class Spider(object):
                     self.wallpaper_url_list.append(each_tag.a['href'])
 
     def get_wallpaper_pic_url(self):
-        for url in self.wallpaper_url_list:
-            r = requests.get(url, cookies=COOKIE_DICT, headers=HEADERS)
+        url_num = len(self.wallpaper_url_list)
+        for n, url in enumerate(self.wallpaper_url_list):
+            print 'collection wallpaper url [{n}/{total}].'.format(
+                n=n+1, total=url_num)
+            r = requests.get(url, cookies=cookies_search,
+                             headers=headers_search)
+            time.sleep(30)
             soup = BeautifulSoup(r.content, 'html5lib')
             tags = soup.find_all('a', class_="photo-zoom")
             self.wallpaper_file_list.append(tags[0]['href'])
 
+    def get_movie_name(self):
+        movie_site = '{main}/subject/{t.sub_id}'.format(
+            main=DOUBAN_URL, t=self
+        )
+        movie_site_r = requests.get(movie_site)
+        movie_site_soup = BeautifulSoup(movie_site_r.content, 'html5lib')
+        movie_site_tag = movie_site_soup.find_all('h1')
+        movie_name = movie_site_tag[0].span.string
+        return movie_name
+
+    def saveImg(self, imageURL):
+        each_file_name = os.path.basename(imageURL)
+        each_file_path = os.path.join(
+            self.out_dir, self.movie_name, each_file_name)
+        each_file_name_id = os.path.splitext(each_file_name)[0].lstrip('p')
+        reffer = {'referer': '{url}/{p_id}/'.format(
+            url=DOUBAN_DL_REF, p_id=each_file_name_id
+        )}
+        headers_download.update(reffer)
+        r = requests.get(imageURL, cookies=cookies_download,
+                         headers=headers_download)
+        data = r.content
+        with open(each_file_path, 'wb') as file_inf:
+            file_inf.write(data)
+        return 1
+
     def download_wallpaper(self):
         self.get_wallpaper_url()
         self.get_wallpaper_pic_url()
+        self.movie_name = self.get_movie_name()
         if not self.wallpaper_file_list:
-            print 'No wallpaper for this film.'
+            print 'No wallpaper for [{t.movie_name}].'.format(
+                t=self
+            )
             return 0
         else:
-            for each_file in self.wallpaper_file_list:
-                # TODO get movie name
-                each_file_name = os.path.basename(each_file)
-                each_file_path = os.path.join(self.out_dir, each_file_name)
-                saveImg(each_file, each_file_path)
+            movie_dir = os.path.join(self.out_dir, self.movie_name)
+            try:
+                os.makedirs(movie_dir)
+            except OSError:
+                print '[{t.movie_name}] is downloaded before.'.format(
+                    t=self
+                )
+            else:
+                for n, each_file in enumerate(self.wallpaper_file_list):
+                    print 'downloading wallpaper [{n}/{total}].'.format(
+                        n=n+1, total=len(self.wallpaper_file_list)
+                    )
+                    self.saveImg(each_file)
+                    time.sleep(60)
