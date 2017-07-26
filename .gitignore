@@ -1,4 +1,8 @@
 .gitignore
 *.txt
 *~
+test*
+__pycache__
+*xls
+*xlsx
 
