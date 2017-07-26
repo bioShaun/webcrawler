@@ -7,6 +7,7 @@ import urllib
 
 
 HEADER = ['学校', '院系', '职称/部门', '姓名', '简介', '邮箱']
+URL = 'http://linxue.imau.edu.cn/szdw/jsjj.htm'
 
 
 def abs_url_path(base_url, rel_path):
@@ -44,10 +45,10 @@ class Teacher(object):
 
 class Spider(object):
 
-    def __init__(self, school, department, url, out_file):
+    def __init__(self, school, department, out_file):
         self.school = school
         self.department = department
-        self.url = url
+        self.url = URL
         self.out_file = out_file
         self.teacher_dict = OrderedDict()
         self.teacher_email_dict = OrderedDict()

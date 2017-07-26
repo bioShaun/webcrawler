@@ -12,15 +12,19 @@ headers_search = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
                   Chrome/59.0.3071.115 Safari/537.36'}
 
 
+URL = 'http://nxy.imau.edu.cn/szxx.htm'
+
+
 class Spider(base_spider.Spider):
 
     def __init__(self, school, department, url, out_file):
         super().__init__(school, department, url, out_file)
+        self.url = URL
 
     def get_name_title(self):
         r = requests.get(self.url, headers=headers_search)
         self.get_one_page(r.content)
-        time.sleep(20)
+        time.sleep(60)
         soup = BeautifulSoup(r.content, 'html5lib')
         next_url = soup.find_all('a', class_='Next')
         if next_url:
