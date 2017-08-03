@@ -14,7 +14,6 @@ headers_search = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
                   Chrome/59.0.3071.115 Safari/537.36'}
 
 
-URL = 'http://dwkx.ynau.edu.cn/tealist.aspx'
 HEADER = ['学校', '院系', '职称/部门', '姓名', '简介', '邮箱']
 
 
@@ -33,34 +32,31 @@ def get_email_list(text):
     return email_list
 
 
+def get_soup(url):
+    r = requests.get(url, headers=headers_search)
+    soup = BeautifulSoup(r.content, 'html5lib')
+    return soup
+
+
 class Spider(object):
 
-    def __init__(self, school, department, url, title, out_file):
+    def __init__(self, school, department, url, title):
         self.school = school
         self.department = department
         self.url = url
         self.title = title
-        self.out_file = out_file
         self.data = tablib.Dataset(headers=HEADER)
+        self.public_email = set()
 
     def get_p_inf(self, soup):
-        p_inf = soup.find_all('td')
-
-        def treat_strong(record):
-            return record.get_text().strip().strip(each_inf.strong.string)
-
-        for each_inf in p_inf:
-            if '所在系' in each_inf.get_text():
-                title1 = treat_strong(each_inf)
-            elif '职务' in each_inf.get_text():
-                title2 = treat_strong(each_inf)
-            elif '电子邮件' in each_inf.get_text():
-                email = treat_strong(each_inf)
-        return '{t1}({t2})'.format(t1=title1, t2=title2), email
+        email_set = set(get_email_list(soup.__str__()))
+        p_email_set = email_set.difference(self.public_email)
+        email = ','.join(p_email_set)
+        return self.title, email
 
     def get_teacher_inf(self, url):
         r = requests.get(url, headers=headers_search)
-        time.sleep(60)
+        time.sleep(10)
         soup = BeautifulSoup(r.content, 'html5lib')
         return self.get_p_inf(soup)
 
@@ -69,7 +65,10 @@ class Spider(object):
 
     def get_name_inf(self, soup):
         teacher_url = abs_url_path(self.url, soup['href'])
-        teacher_name = soup.get_text()
+        teacher_name = soup.get_text().strip()
+        if 'teacher_title' in soup:
+            self.title = soup['teacher_title']
+        # print(teacher_url, teacher_name)
         return teacher_url, teacher_name
 
     @property
@@ -90,18 +89,17 @@ class Spider(object):
             self.data.append([self.school, self.department, teacher_title,
                               teacher_name, teacher_url, email])
             print(teacher_name, email)
-        with open(self.out_file, 'wb') as f:
-            f.write(self.data.xls)
+        # return self.data
+        # with open(self.out_file, 'wb') as f:
+        #     f.write(self.data.xls)
 
 
 class DepartmentSpider(object):
 
-    def __init__(self, school, department, out_dir):
+    def __init__(self, school, department, url):
         self.school = school
-        self.url = URL
+        self.url = url
         self.department = department
-        self.out_file = os.path.join(out_dir, '{s}_{d}.xls'.format(
-            s=school, d=department))
 
     def get_department_url(self):
         return [(self.department, self.url)]
